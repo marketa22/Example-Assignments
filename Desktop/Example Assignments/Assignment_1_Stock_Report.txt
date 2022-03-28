@@ -1,0 +1,153 @@
+# Assignment 1 COMP2454
+# Marketa Hlavon November 5, 2021
+
+import pandas_datareader as pdr
+import datetime
+import pandas as pd
+
+# Allows the full width of the dataframe to show
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
+
+# Prints the first part of the output
+# Takes input from user to determine whether user wants to quit program or get report
+def print_header():
+    print("-------------------------------------------------")
+    print("Stock Report Menu Options")
+    print("-------------------------------------------------")
+    print("1. Report changes for a stock")
+    print("2. Quit")
+    choose = input()
+    return choose
+
+
+# function to get stock symbol from user
+# ensures that the stock symbol is valid
+def getStockSymbol():
+    while True:
+        try:
+            stockSymbol = input("Please enter the stock symbol:\n")
+            dt = datetime.date.today()
+            test = pdr.get_data_yahoo(stockSymbol,
+                                      start=datetime.datetime(dt.year, dt.month, dt.day),
+                                      end=datetime.datetime(dt.year, dt.month, dt.day))
+            break
+        except BaseException:
+            print("Please input a valid stock symbol.")
+
+    return stockSymbol
+
+
+# function to get number of days from user
+# ensures that the number is valid
+def getNumberDays():
+    while True:
+        try:
+            numberDays = int(input("Please enter the number of days for the analysis:\n"))
+            if (numberDays < 1 or numberDays > 2000):
+                raise ValueError
+            break
+        except ValueError:
+            print("Invalid input. You must enter a number greater than 0 and less than 2000.")
+
+    return numberDays
+
+
+# Get Report Option
+def one():
+    # get stock symbol and number of days from user
+    stockSymbol = getStockSymbol()
+    numberDays = getNumberDays()
+
+    # get current and start date
+    dt = datetime.date.today()
+    dtPast = dt + datetime.timedelta(days=-(numberDays - 1))
+
+    # print header for data frame that details what information is in data frame
+    print("************************************************************")
+    print("Daily Percent Changes - " + str(dtPast) + " to " + str(dt) + " * " + stockSymbol.upper() + " *")
+    print("************************************************************")
+
+    # get info about the stock and put into a dataframe
+    df = getStock(str(stockSymbol), dt, dtPast)
+
+    # set column names for empty dataframe that will be filled with all information to be printed
+    df2 = pd.DataFrame(columns=['Close', 'Volume', 'Volume % Change', 'Close % Change'])
+
+    # to keep track of day before
+    count = 0
+
+    # loop to fill df2
+    for x in range(0, len(df)):
+        df2.loc[x, 'Close'] = format(df.iloc[x]['Close'], '.6f')  # copy Close price, format to 6 decimal places
+        df2.loc[x, 'Volume'] = round(df.iloc[x]['Volume'])  # copy Volume, round so there are no decimal places
+        # calculate and place in dataframe Volume % Change and Close % Change, format to 4 decimal places (if 1 day 0.0)
+        if (numberDays == 1):
+            df2.loc[x, 'Volume % Change'] = 0.0
+            df2.loc[x, 'Close % Change'] = 0.0
+        else:
+            df2.loc[x, 'Volume % Change'] = format(percentChange(df2.iloc[x]['Volume'], df2.iloc[count]['Volume']),
+                                                   '.4f')
+            df2.loc[x, 'Close % Change'] = format(
+                percentChange(float(df2.iloc[x]['Close']), float(df2.iloc[count]['Close'])), '.4f')
+        # increment count if it is not the first date
+        if x != 0:
+            count += 1
+
+    # calculate volume change
+    volumeChange = percentChange(df2.iloc[len(df2) - 1]['Volume'], df2.iloc[0]['Volume'])
+    # calculate close price change
+    cpChange = percentChange(float(df2.iloc[len(df2) - 1]['Close']), float(df2.iloc[0]['Close']))
+
+    # relabel rows back to dates
+    df2.index = df.index
+
+    # print dataframe df2
+    print(df2)
+
+    # Print Summary of Cumulative Changes for the stock with above calculations
+    print("------------------------------------------------------------")
+    print("Summary of Cumulative Changes for " + stockSymbol)
+    print("------------------------------------------------------------")
+    print(str(dtPast) + " to " + str(dt))
+    print("% Volume Change:      " + str(round(volumeChange, 3)))
+    print("% Close Price Change: " + str(round(cpChange, 3)))
+
+
+# gets and return stock information based on symbol, current and start date
+def getStock(stockSymbol, dt, dtPast):
+    df = pdr.get_data_yahoo(stockSymbol,
+                            start=datetime.datetime(dtPast.year, dtPast.month, dtPast.day),
+                            end=datetime.datetime(dt.year, dt.month, dt.day))
+    return df
+
+
+# Formula for daily and overall percent change
+def percentChange(current, previous) -> float:
+    return (current - previous) / previous
+
+
+# Function to smoothly quit the program
+def quitProgram():
+    quit = False
+    print("Thank you for using the program.")
+    return quit
+
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+    endProgram = False
+    # Continues running and allows user to get report changes for a stock unless specified to quit
+    while not endProgram:
+        userChoice = print_header()
+        # Continue running from the start if 1 is selected
+        if userChoice == "1":
+            one()
+        # Quit program if 2 is selected
+        elif userChoice == "2":
+            endProgram = quitProgram()
+            break
+        # Allow user to try again if input in neither 1 nor 2
+        else:
+            print("Your answer wasn't 1 or 2, please try again")

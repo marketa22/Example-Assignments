@@ -1,0 +1,134 @@
+# Assignment 2 - COMP 2454
+# Marketa Hlavon Nov 30, 2021
+
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup
+import re
+
+# location of chromedriver on my computer
+s = Service("/Users/marketa/Downloads/chromedriver")
+browser = webdriver.Chrome(service=s)
+
+# URL for website to be scraped
+URL = "https://society6.com/prints"
+browser.get(URL)
+
+# Give the browser time to load all content.
+time.sleep(1)
+
+# Using 'field' as a search term for the website
+SEARCH_TERM = "field"
+search = browser.find_element(By.CSS_SELECTOR, "#searchterm-desktop")
+search.send_keys(SEARCH_TERM)
+# Find the search button - this is only enabled when a search query is entered
+button = browser.find_element(By.CSS_SELECTOR, "#desktop-nav-search-submit , .title_product_28Muu")
+button.click()  # Click the button.
+time.sleep(3)
+
+
+# Create a class with the properties of the art pieces to be printed
+class ArtPiece:
+    itemName = ""
+    itemArtist = ""
+    itemPrice = 0
+
+    # initializing object
+    def __init__(self, itemName, itemArtist, itemPrice):
+        self.itemName = itemName
+        self.itemArtist = itemArtist
+        self.itemPrice = itemPrice
+
+    # function for printing object
+    def showDetail(self):
+        print("Item:     " + self.itemName);
+        print("Artist:   " + self.itemArtist);
+        print("Price:    " + self.itemPrice + "\n");
+
+# list for adding objects
+objectList = []
+
+# Starts at page 1 and scrapes 3 pages
+pageNum = 1;
+for i in range(0, 3):
+    # states which items to scrape from the website
+    content = browser.find_elements(By.CSS_SELECTOR, ".discount_product_xn_XR , .author_product_2xpi1 , .title_product_28Muu")
+    # list for storing information scraped from the website
+    scrapeList = []
+    for e in content:
+        textContent = e.get_attribute('innerHTML')
+
+        # Beautiful soup removes HTML tags from our content if it exists.
+        soup = BeautifulSoup(textContent, features="lxml")
+        rawString = soup.get_text().strip()
+
+        # Remove hidden characters for tabs and new lines.
+        rawString = re.sub(r"[\n\t]*", "", rawString)
+
+        # Replace two or more consecutive empty spaces with '*'
+        rawString = re.sub('[ ]{2,}', '*', rawString)
+
+        # Removed Illustrator Designer from Artist
+        rawString = rawString.replace("Illustrator Designer", "")
+
+        # Appends string to the list
+        scrapeList.append(rawString)
+
+        # When list has three items (print name, artist name & price) creates an object, appends the object to the list
+        if len(scrapeList) > 2:
+            # Takes items from scraped list and saves them to a variable
+            ITEM_NAME = scrapeList[0]
+            ARTIST_NAME = scrapeList[1]
+            PRINT_PRICE = scrapeList[2]
+
+            # Cleans up information based on type
+            ITEM_NAME = ITEM_NAME.title()
+            ARTIST_NAME = ARTIST_NAME.replace("by", "").strip().title()
+            PRINT_PRICE = PRINT_PRICE.replace("CA", "")
+
+            # Creates objects based on the scrapped information and appends it to the list
+            createItem = ArtPiece(ITEM_NAME, ARTIST_NAME, PRINT_PRICE)
+            objectList.append(createItem)
+
+            # Clears list for saving scrapped information
+            scrapeList = []
+
+    # Moves to next result page using a link
+    pageNum += 1
+
+    URL_NEXT = "https://society6.com/s?q=" \
+               + SEARCH_TERM + "&context=" + SEARCH_TERM + "&page="
+    URL_NEXT = URL_NEXT + str(pageNum)
+
+    browser.get(URL_NEXT)
+
+    time.sleep(3)
+
+# Prints all of the objects using the showDetail function (all of the information from the website)
+for item in objectList:
+    item.showDetail()
+
+# extracts information from the list of the objects, and extracts specific information and saves it into a list
+items = [item.itemName for item in objectList]
+names = [item.itemArtist for item in objectList]
+prices = [item.itemPrice for item in objectList]
+# takes the lists and turns them into a dataframe
+dfObj = pd.DataFrame({'Item': items, 'Artist': names, 'Price': prices})
+
+# Output destination and file name
+DRIVER_PATH = "/Users/marketa/Desktop/"
+CSV_FILE = "websiteOutput.csv"
+
+# Saving dataframe
+dfObj.to_csv(DRIVER_PATH + CSV_FILE)
+
+# Read in content and save into a new data frame
+dfIn = pd.read_csv(DRIVER_PATH + CSV_FILE, skiprows=1, names=('Item', 'Artist', 'Price'))
+# Extracts the length of the dataframe, and creates a list of rows to output
+last = int(len(dfIn))
+listRows = [0, 1, last - 2, last - 1]
+# prints the first two and last two rows of the dataframe
+print(dfIn.loc[listRows, :])
